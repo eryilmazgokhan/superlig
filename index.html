@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="tr" class="min-h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sampiyonluk Yolu - Cok Oyunculu</title>
+<!-- Tailwind v4 (CDN build for development). Production: compile with @tailwindcss/cli, see CLAUDE.md -->
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+@theme {
+  --color-pitch-950: #0b1f17;  /* page background */
+  --color-pitch-900: #0e2a1e;  /* topbar, list rows */
+  --color-pitch-800: #102a1f;  /* cards */
+  --color-pitch-700: #153826;  /* banner, active/selected */
+  --color-grass: #123324;      /* pitch */
+  --color-grass-dark: #0f2c1f; /* pitch stripe */
+  --color-gold: #d4af37;
+  --color-gold-light: #f0c94a;
+  --color-gold-ink: #1a1508;   /* text on gold */
+  --color-ink: #eef3ee;        /* body text */
+  --color-mist: #a9c2b3;       /* secondary text */
+  --color-dim: #6f8b7c;        /* muted text */
+  --color-danger: #e57373;
+  --color-ok: #81c784;
+  --font-narrow: "Arial Narrow", Arial, sans-serif;
+}
+@layer base {
+  * { -webkit-tap-highlight-color: transparent; }
+  h1, h2, h3 { @apply font-narrow font-bold tracking-[.02em]; }
+  h1 { @apply text-[32px]; }
+  button { @apply cursor-pointer; }
+}
+/* Component classes: only for markup that JS creates repeatedly. Static HTML uses plain utilities. */
+@layer components {
+  .btn { @apply flex-1 min-w-[120px] px-4 py-3 rounded-full border border-gold bg-transparent text-gold-light text-sm font-bold text-center disabled:opacity-30 disabled:pointer-events-none; }
+  .btn-pri { @apply bg-gold text-gold-ink active:bg-gold-light; }
+  .btn-ghost { @apply border-white/15 text-mist; }
+  .btn-sm { @apply flex-none min-w-0 px-3.5 py-2 text-xs; }
+  .crest { @apply rounded-full shrink-0 flex items-center justify-center font-bold; }
+  .tc { @apply w-[calc(50%_-_5px)] min-[480px]:w-[calc(33.333%_-_7px)] min-[720px]:w-[calc(25%_-_8px)] flex flex-col gap-1.5 py-3.5 px-3 rounded-[10px] bg-pitch-800 border border-gold/20 text-left active:border-gold active:bg-pitch-700 disabled:opacity-40 disabled:cursor-not-allowed; }
+  .node { @apply absolute w-10 h-10 -ml-5 -mt-5 rounded-full flex items-center justify-center bg-pitch-700 border-2 border-gold text-ink text-[10px] font-bold font-narrow cursor-grab select-none touch-none z-[5] shadow-[0_2px_8px_rgba(0,0,0,.5)]; }
+  .slot { @apply absolute w-[46px] h-[34px] -ml-[23px] -mt-[17px] p-0.5 rounded-md border-[1.5px] border-dashed border-white/30 bg-black/15 flex flex-col items-center justify-center text-[8.5px] leading-[1.1] text-dim text-center cursor-pointer; }
+  .slot-filled { @apply border-solid border-gold bg-pitch-800 text-ink; }
+  .slot-focus { @apply border-gold-light shadow-[0_0_0_2px_rgba(240,201,74,.3)]; }
+  .cand { @apply flex items-center gap-2 p-2 mb-1.5 rounded-[7px] bg-white/2 active:bg-white/7; }
+  .cb { @apply shrink-0 px-3 py-1.5 rounded-full border border-gold text-gold-light text-xs font-bold active:bg-gold active:text-gold-ink; }
+  .row-me { @apply bg-gold/10 [&>td:first-child]:border-l-2 [&>td:first-child]:border-l-gold; }
+  .row-human { @apply bg-sky-400/5 [&>td:first-child]:border-l-2 [&>td:first-child]:border-l-sky-400; }
+  .pitch-stripes { background: repeating-linear-gradient(180deg, var(--color-grass) 0 11.11%, var(--color-grass-dark) 11.11% 22.22%); }
+}
+</style>
+</head>
+<body class="min-h-full bg-pitch-950 text-ink">
+
+<div id="topbar" class="sticky top-0 z-20 flex items-center justify-between gap-2 px-3.5 py-3 bg-pitch-900 border-b border-gold/20">
+  <div class="flex items-center gap-1.5"><span class="text-lg">&#9917;</span><span class="font-narrow text-[15px] font-bold text-gold">SAMPIYONLUK YOLU</span></div>
+  <div id="rcdisp" class="hidden"><span class="font-narrow text-lg font-bold text-gold-light tracking-[.12em]" id="rcd"></span></div>
+  <div class="flex gap-[5px]" id="sdots">
+    <span></span><span></span><span></span><span></span>
+  </div>
+</div>
+
+<div id="banner" class="hidden"></div>
+
+<div class="max-w-[900px] mx-auto px-3.5 pt-4 pb-20">
+
+<section id="s0">
+  <h1>Hos geldin!</h1>
+  <p class="text-mist text-sm leading-relaxed mt-2 mb-[18px]">Yeni bir oda ac ya da arkadasinin verdigi 4 harfli kodu girerek katil.</p>
+  <div class="mt-3.5 p-[18px] rounded-xl bg-pitch-800 border border-gold/20">
+    <input id="nickInp" class="w-full mb-2.5 px-3.5 py-[13px] rounded-lg bg-pitch-950 border border-gold/30 text-ink text-base outline-none appearance-none placeholder:text-dim focus:border-gold" placeholder="Kullanici adin" maxlength="20">
+    <button class="btn btn-pri w-full" id="createBtn">Yeni oda ac</button>
+    <div class="text-center text-dim text-xs my-3">— veya —</div>
+    <input id="codeInp" class="w-full mb-2.5 px-3.5 py-[13px] rounded-lg bg-pitch-950 border border-gold/30 text-ink text-base outline-none appearance-none placeholder:text-dim focus:border-gold tracking-[.12em] uppercase" placeholder="Oda kodu (4 harf)" maxlength="4">
+    <button class="btn w-full border-gold/40" id="joinBtn">Odaya katil</button>
+  </div>
+  <div id="lobbyWait" class="hidden mt-5">
+    <div class="flex items-center justify-between mb-2.5">
+      <h2 class="text-base">Oda: <span class="text-gold-light" id="lobCode"></span></h2>
+      <button class="btn btn-sm btn-ghost" id="cpyBtn">Kopyala</button>
+    </div>
+    <p class="text-mist text-sm leading-relaxed mt-2 mb-2.5">Arkadaslarin bu kodu girerek katilabilir.</p>
+    <div id="lobPlayers"></div>
+    <div class="flex flex-wrap gap-2 mt-4"><button class="btn btn-pri" id="startBtn" disabled>Takim secimini baslat</button></div>
+  </div>
+</section>
+
+<section id="s1" class="hidden">
+  <h1>Takimini sec</h1>
+  <p class="text-mist text-sm leading-relaxed mt-2 mb-[18px]">Kilitli takimlar baska oyuncular tarafindan secilmis.</p>
+  <div id="teamGrid" class="flex flex-wrap gap-2.5 mt-3.5"></div>
+</section>
+
+<section id="s2" class="hidden">
+  <h1>Taktik tahtasi</h1>
+  <p class="text-mist text-sm leading-relaxed mt-2 mb-[18px]">Dizilisini sec, noktalari sahada tasiyip kendi duzenini olustur.</p>
+  <div id="tacWrap" class="flex flex-col min-[700px]:flex-row gap-3.5 mt-3.5">
+    <div>
+      <div class="flex flex-wrap gap-2" id="fbts"></div>
+      <p class="text-mist text-xs leading-relaxed mt-2">Noktalari sahada istedigin gibi tasiyabilirsin.</p>
+    </div>
+    <div class="relative w-full max-w-[340px] pt-[510px] mx-auto min-[700px]:mx-0">
+      <div class="pitch-stripes absolute inset-0 rounded-lg border-2 border-white/30 overflow-hidden touch-none" id="pitch">
+        <div class="absolute left-[26%] top-0 w-[48%] h-[11%] border-[1.5px] border-white/30"></div>
+        <div class="absolute left-[26%] bottom-0 w-[48%] h-[11%] border-[1.5px] border-white/30"></div>
+        <div class="absolute inset-x-0 top-1/2 h-0 border-t-[1.5px] border-white/30"></div>
+        <div class="absolute left-1/2 top-1/2 w-[20%] pt-[20%] -ml-[10%] -mt-[10%] rounded-full border-[1.5px] border-white/30"></div>
+      </div>
+    </div>
+  </div>
+  <div class="flex flex-wrap gap-2 mt-4"><button class="btn btn-pri" id="toSqBtn">Kadro kur &rarr;</button></div>
+</section>
+
+<section id="s3" class="hidden">
+  <h1>Kadronu kur</h1>
+  <p class="text-mist text-sm leading-relaxed mt-2 mb-[18px]">Mevkiye dokun, adaydan birini sec. Hazir olunca butona bas.</p>
+  <div id="sqWrap" class="flex flex-col min-[680px]:flex-row gap-3.5 mt-3.5">
+    <div class="relative w-full max-w-[300px] pt-[450px] mx-auto min-[680px]:mx-0 shrink-0">
+      <div class="absolute inset-0 bg-grass border-2 border-white/30 rounded-lg" id="spitch"></div>
+    </div>
+    <div class="flex flex-col gap-3 flex-1">
+      <div id="sqprog"></div>
+      <div id="cpanel" class="min-h-[90px] p-3 rounded-[10px] bg-pitch-800 border border-gold/20"><p class="text-dim text-[13px] leading-normal">Sahadaki bir mevkiye dokun.</p></div>
+      <div class="px-3.5 py-3 rounded-[10px] bg-pitch-800 border border-gold/20"><h3 class="text-xs text-mist mb-2">Oyuncu durumu</h3><div class="flex flex-wrap gap-1.5" id="rchips"></div></div>
+    </div>
+  </div>
+  <div class="flex flex-wrap gap-2 mt-4"><button class="btn btn-pri" id="readyBtn" disabled>Hazir! Sampiyonaya gec</button></div>
+</section>
+
+<section id="s4" class="hidden">
+  <h1>Super Lig</h1>
+  <div class="flex flex-wrap gap-2 mt-3 mb-3.5" id="lgpills"></div>
+  <div class="overflow-x-auto rounded-lg">
+    <table class="w-full min-w-[340px] text-[11.5px]">
+      <thead class="text-left text-[10px] text-dim font-semibold [&_th]:px-[5px] [&_th]:py-[7px] [&_th]:border-b [&_th]:border-gold/15 [&_th]:whitespace-nowrap"><tr>
+        <th>Takim</th><th class="text-center">O</th><th class="text-center">G</th><th class="text-center">B</th><th class="text-center">M</th>
+        <th class="text-center">A</th><th class="text-center">Y</th><th class="text-center">AV</th><th class="text-center">P</th>
+      </tr></thead>
+      <tbody id="tbody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
+    </table>
+  </div>
+  <div class="flex flex-wrap gap-2 mt-3.5">
+    <button class="btn btn-pri" id="nextBtn">Sonraki hafta</button>
+    <button class="btn btn-ghost" id="allBtn">Tumunu simule et</button>
+  </div>
+  <div id="flog" class="mt-4"></div>
+</section>
+
+</div>
+
+<div id="ov" class="hidden fixed inset-0 z-[100] items-center justify-center p-4 bg-[#050c08]/90">
+  <div class="w-full max-w-[380px] py-7 px-5 rounded-[14px] bg-pitch-800 border border-gold text-center" id="champ"></div>
+</div>
+<script src="js/data.js"></script>
+<script src="js/core.js"></script>
+<script src="js/lobby.js"></script>
+<script src="js/tactics.js"></script>
+<script src="js/squad.js"></script>
+<script src="js/league.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

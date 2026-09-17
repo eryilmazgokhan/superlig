@@ -22,8 +22,8 @@ Oda ac · Takimini sec · Dizilisini kur · Kadronu olustur · Sezonu yasa
 | 1 | **Lobi** | Bir kullanici adi gir, yeni oda ac ya da arkadasinin 4 harfli kodunu yaz. |
 | 2 | **Takim secimi** | 18 Super Lig kulubunden birini sec. Bir takimi sadece bir kisi alabilir. |
 | 3 | **Taktik tahtasi** | 4-4-2, 4-3-3, 4-2-3-1 veya 3-5-2. Oyuncu noktalarini sahada surukle, mevkiler otomatik degisir. |
-| 4 | **Kadro** | Her mevki icin rastgele adaylar gelir. Kendi kulubunun oyunculari kimya bonusu alir. |
-| 5 | **Lig** | 34 haftalik sezon. Hafta hafta ilerle ya da hepsini simule et. Herkes ayni sonuclari gorur. Puan tablosunun yaninda gol kralligi da var. |
+| 4 | **Kadro** | Her mevki icin rastgele adaylar gelir - istedigin gercek oyuncuyu, hangi kulupten olursa olsun draft edebilirsin. Kendi kulubunun oyunculari kimya bonusu alir. |
+| 5 | **Lig** | 34 haftalik sezon. Hafta hafta ilerle ya da hepsini simule et. Herkes ayni sonuclari gorur. Puan tablosunun yaninda gol kralligi ve asist kralligi da var - gol/asist istatistikleri sadece fiilen o kadroya girdigin/AI'ya dagilan oyunculardan gelir. |
 
 Rakip takimlar bilgisayar tarafindan yonetilir. Mac skorlari takim gucune gore Poisson dagilimiyla uretilir, yani surprizler olur.
 
@@ -47,7 +47,7 @@ Arkadasinla oynamak icin dosyayi bir yere yayinla (GitHub Pages yeterli) ve link
 ## 🧠 Nasil calisiyor
 
 - **Coklu oyuncu:** Oda bilgisi Firebase Realtime Database'de tutulur, her istemci 2 saniyede bir REST ile okur. Faz makinesi: `lobby → selecting → building → league`. Gecisleri host yapar; host kaybolursa en eski oyuncu devralir.
-- **Ayni sezon, herkes icin:** Oda acilirken bir `seed` uretilir. Fikstur, mac sonuclari ve gol krallligi bu seed'den turetildigi icin her oyuncunun ekraninda ayni sampiyon ve ayni gol krali cikar.
+- **Ayni sezon, herkes icin:** Oda acilirken bir `seed` uretilir. Fikstur, mac sonuclari, kadro dagilimi (kimin kimi drafte ettigi disinda kalan tum oyuncular AI kulüplerine bu seed'le rastgele dagitilir) ve gol/asist krallligi bu seed'den turetildigi icin her oyuncunun ekraninda ayni sampiyon, ayni gol krali ve ayni asist krali cikar.
 - **Karsilikli onay:** O hafta aranizda dogrudan eslesme varsa hafta ancak iki taraf da onaylayinca ilerler; digerlerini kimse bekletmez.
 - **Yenilemeye dayanikli:** Sayfayi yenilersen odaya geri katilirsin. Sekmeyi kapatan oyuncu 30 saniye sonra sayilmaz, oyun kilitlenmez.
 - **Stil:** Tailwind v4. Renk paleti `index.html` icindeki `@theme` blogunda.
@@ -61,7 +61,7 @@ js/core.js            durum, yardimcilar, Firebase, faz yonlendirici
 js/lobby.js           oda ac / katil, takim secimi
 js/tactics.js         taktik tahtasi
 js/squad.js           kadro kurma
-js/league.js          fikstur, mac simulasyonu, puan tablosu, gol kralligi, onay akisi
+js/league.js          fikstur, kadro dagilimi, mac simulasyonu, puan tablosu, gol/asist kralligi, onay akisi
 js/main.js            buton baglantilari
 database.rules.json   Firebase kurallari (konsoldan yuklenir)
 CLAUDE.md             Claude Code icin proje rehberi

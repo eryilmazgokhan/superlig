@@ -136,6 +136,7 @@
   <div class="flex gap-2 mb-2.5">
     <button class="btn btn-sm" id="tabStandings">Puan Durumu</button>
     <button class="btn btn-sm btn-ghost" id="tabScorers">Gol Kralligi</button>
+    <button class="btn btn-sm btn-ghost" id="tabAssists">Asist Kralligi</button>
   </div>
   <div id="standingsWrap" class="overflow-x-auto rounded-lg">
     <table class="w-full min-w-[340px] text-[11.5px]">
@@ -152,6 +153,14 @@
         <th class="text-center">#</th><th>Oyuncu</th><th class="text-center">Gol</th>
       </tr></thead>
       <tbody id="scorerBody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
+    </table>
+  </div>
+  <div id="assistsWrap" class="hidden overflow-x-auto rounded-lg">
+    <table class="w-full min-w-[260px] text-[11.5px]">
+      <thead class="text-left text-[10px] text-dim font-semibold [&_th]:px-[5px] [&_th]:py-[7px] [&_th]:border-b [&_th]:border-gold/15 [&_th]:whitespace-nowrap"><tr>
+        <th class="text-center">#</th><th>Oyuncu</th><th class="text-center">Asist</th>
+      </tr></thead>
+      <tbody id="assistBody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
     </table>
   </div>
   <div id="nextFixture" class="text-[13px] text-mist mt-3"></div>

@@ -18,7 +18,7 @@ Plain `<script src>` tags, ES5 globals, no modules. `index.html` loads them in t
 | `js/lobby.js` | screens 0-1: create/join room, lobby list, `buildPool`, team grid, `selectTeam` |
 | `js/tactics.js` | screen 2: formation buttons, draggable nodes |
 | `js/squad.js` | screen 3: slots, candidate picker, `markReady` |
-| `js/league.js` | screen 4: fixtures, `simMatch` + scorers, standings, gol krallik, round-advance approval flow, text narration, `onEnd` |
+| `js/league.js` | screen 4: fixtures, roster assignment (`buildLeague`), `simMatch` + scorers/assists, standings, gol krallik, asist krallik, round-advance approval flow, text narration, `onEnd` |
 | `js/main.js` | button wiring, `setStep(0)` |
 
 Data is a `.js` file rather than fetched JSON so the page still works when opened from disk (`file://`).
@@ -56,7 +56,7 @@ Room document `rooms/{CODE}`:
   host: "<player id>", created: <ms>, seed: <int>,
   round: <int>,                 // shared "weeks simulated" counter, league phase only
   simReq?: { round, by, approvals: { "<pid>": true }, narrateVotes?: { "<pid>": true } },  // pending round-advance request
-  players: { "<id>": { nick, teamId|null, ready, squadPw?, ts, seen } } }
+  players: { "<id>": { nick, teamId|null, ready, squadPw?, squad?: [<player name>...], ts, seen } } }
 ```
 
 Phase transitions are all written by the host (`effectiveHost`: the stored host, or the earliest-joined active player if the host vanished):
@@ -66,17 +66,19 @@ Phase transitions are all written by the host (`effectiveHost`: the stored host,
 
 Ghosts: `activePlayers` drops anyone whose `seen` is older than `STALE_MS` (30 s), so a closed tab never blocks "everyone picked / everyone ready", and never blocks a round-advance approval either (see below). A reload in the same tab restores `ME.id`/`ROOM` from `sessionStorage` and calls `rejoin`, which resumes at the current phase (including "already ready, waiting"); a reload during `league` still lands on a fresh `s0` (rejoin doesn't resume mid-season).
 
+`buildPool` (in `lobby.js`) is a fantasy draft, not a club-locked roster: it turns every entry in `PLAYERS` (all 18 real clubs) into a candidate with a randomized power, so a human building their squad in `squad.js` can draft ANY real player onto their XI regardless of that player's native club (`p.club` on the candidate is just their real-world club badge shown for flavor). `openCands` shows 5 random eligible-position candidates per slot (`shuffled`, plain `Math.random`), so two humans in the same room see different candidates even for the same slot.
+
 Shared vs local state:
-- Shared through Firebase: `nick`, `teamId`, `ready`, `squadPw` (average power of the 11 assigned players, plus 2), the room `seed`, and during `league` the shared `round` counter + `simReq`.
-- Local only (`loc`): the player pool (`buildPool` rolls a random power per player from the club's base `pw`), the formation and dragged slot positions, the assigned squad, the per-slot candidate cache. Each client draws different candidates.
-- The league itself runs client-side but is deterministic: `buildLeague(players, seed)` seeds `_rng` (`mulberry32`) and `makeFixtures`, AI team power and `simMatch` draw only from `_rng`, so every player sees the identical season (same standings, same gol krallik). What is no longer purely local is *when* each round actually simulates:
+- Shared through Firebase: `nick`, `teamId`, `ready`, `squadPw` (average power of the 11 assigned players, plus 2), `squad` (the drafted 11's real names — see roster assignment below), the room `seed`, and during `league` the shared `round` counter + `simReq`.
+- Local only (`loc`): the player pool (`buildPool` rolls a random power per player), the formation and dragged slot positions, the assigned squad, the per-slot candidate cache. Each client draws different candidates, but the final `squad` names get synced at `markReady()`.
+- The league itself runs client-side but is deterministic: `buildLeague(players, seed)` seeds `_rng` (`mulberry32`) and `makeFixtures`, AI team power and `simMatch` draw only from `_rng`, so every player sees the identical season (same standings, same gol krallik, same asist krallik). What is no longer purely local is *when* each round actually simulates:
   - `advanceRound(narrate)` is the real simulate-and-render step (was `simRound`). Every client calls it once per round, locally, either while catching up to `room.round` or right after seeing a round's approvals complete.
   - `renderNextFixture()` always shows "Sonraki hafta: A - B" above the buttons (`#nextFixture`), computed from `myFixture(_round)` — the upcoming matchup is visible before the player ever presses anything, not just after.
   - `requestAdvance()` (wired to "Sonraki hafta", no args now) and `tryFree()` (wired to "Tumunu simule et") are the gates in front of `advanceRound`: if `_fixtures[_round]` has no active human-vs-human fixture, they advance immediately (`writeRound` + `advanceRound`); if it does, they write `simReq` (just `{round, by, approvals}`, no upfront narrate choice) and wait.
   - `onLeaguePoll` (called from `onRoomUpdate` every poll while `phase==="league"`; polling is no longer stopped when the league starts) is what actually drives this: it replays any rounds the room is ahead of (`room.round`), and shows/clears the approval banner (`showApprovalPrompt`/`hideApprovalBanner`) via `handleSimRequest`.
   - Because both sides' clicks are just "add my pid to `simReq.approvals`", either participant can request and either can approve/reject (`approveSim`/`rejectSim`); a stale (ghost) opponent is dropped from the required set by `requiredPids`, same as elsewhere.
   - Whether to narrate is a shared decision, not something the requester decides upfront: `showApprovalPrompt` renders the fixture name and a "Bu haftayi yaziyla anlat" checkbox to *both* sides (the requester waiting for approval, and the other player deciding whether to approve), wired to `voteNarrate(want)` which writes `simReq.narrateVotes.{pid}`. `narrateFor(req, active, round)` resolves the final flag once all approvals are in: true if *any* required pid voted for it. Used both by `handleSimRequest` (live resolution) and `onLeaguePoll`'s catch-up loop (replaying a round a poll arrived late for).
-  - Goal scorers aren't simulated per-player; `pickScorer`/`clubRoster` draw a name from that club's real entries in `PLAYERS` (weighted by position, GK excluded), for AI *and* human teams alike, deterministically from `_rng` — so no extra Firebase field is needed to know a human's actual drafted squad. `recordScorer` tallies `_scorers` for the gol krallik tab (`renderScorers`/`topScorers`).
+  - Goal scorers and assists aren't simulated per-player; `pickScorer`/`pickAssister` draw a name from that specific team's actual **roster** (weighted by position via `scorerWeight`/`assistWeight`, GK excluded, `clubRoster`), not from a club's native `PLAYERS` listing. `buildLeague` builds that roster once per team: a human team's roster is exactly the 11 names in `players[pid].squad` (resolved back to `{n,t,c}` records via the `PLAYERS_BY_NAME` lookup); every real player nobody drafted is dealt out — `seededShuffle` (Fisher-Yates on `_rng`, not `Math.random`) then round-robin — across the AI clubs, so the same undrafted-player deal happens identically on every client and nobody can score/assist for a club they weren't actually put on. `recordScorer`/`recordAssist` tally `_scorers`/`_assists` for the gol krallik / asist krallik tabs (`renderScorers`/`topScorers`, `renderAssists`/`topAssists`; `showTab` now has a third state, `"assists"`). A goal has roughly a 72% chance of getting an assist credited (`pickAssister`), drawn from the scoring team's roster minus the scorer.
   - Text narration (`maybeShowNarration`/`renderNarrStep`, the `#mcast` overlay) only ever renders for a human-vs-human fixture, and only when `narrateFor` resolved true for that round; every other fixture always resolves instantly.
   - `onEnd()` no longer deletes the room — the champion overlay (`#ov`/`#champ`) can be dismissed with "Sonuclari incele" (`closeChampOverlay`, reopened via `showChampBtn`/`openChampOverlay`) to browse the finished table/gol krallik without forcing a new season. `newSeason()` (the only thing that reloads the page) is what deletes the room now.
 

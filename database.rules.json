@@ -28,6 +28,9 @@
             "teamId":  { ".validate": "newData.isString() && newData.val().length <= 4" },
             "ready":   { ".validate": "newData.isBoolean()" },
             "squadPw": { ".validate": "newData.isNumber()" },
+            "squad": {
+              "$idx": { ".validate": "newData.isString() && newData.val().length <= 40" }
+            },
             "ts":      { ".validate": "newData.isNumber()" },
             "seen":    { ".validate": "newData.isNumber()" },
             "$other":  { ".validate": false }

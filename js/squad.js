@@ -63,7 +63,11 @@ function renderReadyChips(players){
 }
 function markReady(){
   var myPw=Math.round(loc.assigned.reduce(function(s,p){return s+p.pw;},0)/loc.assigned.length)+2;
-  dbUpdate("rooms/"+ROOM+"/players/"+ME.id,{ready:true,squadPw:myPw},function(){
+  // Real player names of the 11 actually drafted, shared so the league can credit goals/assists
+  // to the squad you actually built -- not just whoever natively plays for your club.
+  var squad=loc.assigned.map(function(p){return p.name;});
+  dbUpdate("rooms/"+ROOM+"/players/"+ME.id,{ready:true,squadPw:myPw,squad:squad},function(err){
+    if(err){banner("Kadro kaydedilemedi. Firebase kurallari guncel olmayabilir; tekrar dene.",true);return;}
     G("readyBtn").disabled=true;
     G("readyBtn").textContent="Diger oyuncular bekleniyor...";
     banner("Hazirsin! Diger oyuncular tamamlayana kadar bekle.");

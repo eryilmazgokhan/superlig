@@ -2,29 +2,55 @@
 // Rounds advance through a shared Firebase counter (room `round`) so a friend-vs-friend
 // week only moves on once both sides confirm; see requestAdvance/onLeaguePoll below.
 var _scorers={};             // key "<teamId>|<player name>" -> {name,type,teamId,goals}
+var _assists={};             // key "<teamId>|<player name>" -> {name,type,teamId,assists}
 var _lastActive={};          // last poll's active-players map (used when a button is clicked)
 var _lastSimReq=null;        // last poll's room.simReq, or null
 var _myPendingReqRound=null; // round number I already sent a simReq for (avoid duplicate writes)
 var _autoAll=false;          // "Tumunu simule et" keeps auto-advancing free rounds until it hits a gate
+// Real player records (data.js) indexed by name, once -- used to turn a drafted squad's
+// name list (synced through Firebase) back into {n,t,c} records for the roster below.
+var PLAYERS_BY_NAME=(function(){var m={};PLAYERS.forEach(function(p){m[p.n]=p;});return m;})();
 
 function buildLeague(players, seed){
   _rng=mulberry32(seed||1);
-  var humanTeams={};
+  var humanTeams={},claimed={};
   Object.keys(players).forEach(function(pid){
     var p=players[pid];
-    if(p.teamId)humanTeams[p.teamId]={nick:p.nick,pw:p.squadPw||TS[p.teamId].pw,isMe:pid===ME.id,pid:pid};
+    if(p.teamId){
+      humanTeams[p.teamId]={nick:p.nick,pw:p.squadPw||TS[p.teamId].pw,isMe:pid===ME.id,pid:pid,squad:p.squad||[]};
+      (p.squad||[]).forEach(function(n){claimed[n]=true;});
+    }
   });
   _league=TEAMS.map(function(t){
     var h=humanTeams[t.id];
     var pw=h?h.pw:t.pw+(Math.floor(_rng()*7)-3);
     return{id:t.id,name:t.name,s:t.s,c1:t.c1,c2:t.c2,pw:pw,
       isMe:h?h.isMe:false,isHuman:!!h,nick:h?h.nick:null,pid:h?h.pid:null,
+      roster:[], // actual matchday squad, filled in below -- not the native-club listing in PLAYERS
       P:0,W:0,D:0,L:0,GF:0,GA:0,Pts:0};
   });
+  // Every human's actual drafted 11 becomes their team's roster (what scorers/assists draw from).
+  Object.keys(humanTeams).forEach(function(teamId){
+    var team=tById(teamId);if(!team)return;
+    team.roster=humanTeams[teamId].squad.map(function(n){return PLAYERS_BY_NAME[n];}).filter(Boolean);
+  });
+  // Whoever wasn't drafted by a human is dealt out, deterministically (same seed, same order on
+  // every client), across the AI clubs -- so a player who got drafted onto someone's XI can no
+  // longer also show up scoring for their native club, and every other real player still ends up
+  // on exactly one team's actual roster.
+  var remaining=seededShuffle(PLAYERS.filter(function(p){return !claimed[p.n];}));
+  var aiTeams=_league.filter(function(t){return !t.isHuman;});
+  if(aiTeams.length)remaining.forEach(function(p,i){aiTeams[i%aiTeams.length].roster.push(p);});
   _fixtures=makeFixtures(_league.map(function(t){return t.id;}));
-  _round=0;_log=[];_scorers={};_autoAll=false;_myPendingReqRound=null;
-  renderPills();renderTable();renderScorers();renderNextFixture();G("flog").innerHTML="";
+  _round=0;_log=[];_scorers={};_assists={};_autoAll=false;_myPendingReqRound=null;
+  renderPills();renderTable();renderScorers();renderAssists();renderNextFixture();G("flog").innerHTML="";
   hideApprovalBanner();
+}
+// Fisher-Yates using the shared seeded RNG (not Math.random) so every client deals the same cards.
+function seededShuffle(a){
+  var b=a.slice();
+  for(var i=b.length-1;i>0;i--){var j=Math.floor(_rng()*(i+1));var t=b[i];b[i]=b[j];b[j]=t;}
+  return b;
 }
 function makeFixtures(ids){
   var teams=ids.slice();if(teams.length%2===1)teams.push(null);
@@ -40,25 +66,38 @@ function makeFixtures(ids){
   return f.concat(s);
 }
 function tById(id){for(var i=0;i<_league.length;i++)if(_league[i].id===id)return _league[i];}
-// Goal scorers are not simulated per-player, so both human and AI teams draw a scorer
-// from their real club roster in PLAYERS, weighted by position. Same club list + same
-// _rng sequence on every client, so the top-scorer table stays identical for everyone.
+// Goal scorers (and assists) are not simulated per-player, so both human and AI teams draw a
+// name from the team's actual roster (see buildLeague: a human's real draft, or an AI club's
+// randomly dealt share of the undrafted players), weighted by position. Same roster + same
+// _rng sequence on every client, so the top-scorer/assist tables stay identical for everyone.
 function scorerWeight(type){
   return type==="ST"?5:type==="AM"?4:(type==="LW"||type==="RW")?3:type==="CM"?2
     :(type==="DM"||type==="LM"||type==="RM")?1.5:(type==="GK")?0:0.5;
 }
-function clubRoster(teamId){
-  var t=TS[teamId];if(!t)return[];
-  return PLAYERS.filter(function(p){return p.c===t.s&&p.t!=="GK";});
+function assistWeight(type){
+  return type==="AM"?5:(type==="LW"||type==="RW")?4:type==="CM"?3:(type==="LM"||type==="RM")?2.5
+    :type==="DM"?1.8:type==="ST"?1:(type==="GK")?0:0.6;
 }
-function pickScorer(teamId){
-  var roster=clubRoster(teamId);
+function clubRoster(teamId){
+  var t=tById(teamId);
+  return t&&t.roster?t.roster.filter(function(p){return p.t!=="GK";}):[];
+}
+function weightedPick(roster,weightFn){
   if(!roster.length)return null;
-  var weights=roster.map(function(p){return scorerWeight(p.t);});
+  var weights=roster.map(function(p){return weightFn(p.t);});
   var total=weights.reduce(function(s,w){return s+w;},0);
+  if(total<=0)return roster[0];
   var r=_rng()*total,acc=0;
   for(var i=0;i<roster.length;i++){acc+=weights[i];if(r<=acc)return roster[i];}
   return roster[roster.length-1];
+}
+function pickScorer(teamId){return weightedPick(clubRoster(teamId),scorerWeight);}
+// The assister is drawn from the same roster, minus whoever just scored -- most goals get one,
+// a few (long shots, headers with no cross) don't.
+function pickAssister(teamId,scorer){
+  if(_rng()>=0.72)return null;
+  var roster=clubRoster(teamId).filter(function(p){return !scorer||p.n!==scorer.n;});
+  return weightedPick(roster,assistWeight);
 }
 function recordScorer(p,teamId){
   if(!p)return;
@@ -66,17 +105,27 @@ function recordScorer(p,teamId){
   if(!_scorers[key])_scorers[key]={name:p.n,type:p.t,teamId:teamId,goals:0};
   _scorers[key].goals++;
 }
+function recordAssist(p,teamId){
+  if(!p)return;
+  var key=teamId+"|"+p.n;
+  if(!_assists[key])_assists[key]={name:p.n,type:p.t,teamId:teamId,assists:0};
+  _assists[key].assists++;
+}
 function simMatch(hId,aId){
   var h=tById(hId),a=tById(aId),d=h.pw-a.pw;
   var gh=poisson(Math.max(.4,1.4+d/14),_rng),ga=poisson(Math.max(.4,1.1-d/14),_rng);
   h.P++;a.P++;h.GF+=gh;h.GA+=ga;a.GF+=ga;a.GA+=gh;
   if(gh>ga){h.W++;a.L++;h.Pts+=3;}else if(gh<ga){a.W++;h.L++;a.Pts+=3;}else{h.D++;a.D++;h.Pts++;a.Pts++;}
   var goals=[],i;
-  for(i=0;i<gh;i++)goals.push({team:hId,min:1+Math.floor(_rng()*90),scorer:pickScorer(hId)});
-  for(i=0;i<ga;i++)goals.push({team:aId,min:1+Math.floor(_rng()*90),scorer:pickScorer(aId)});
+  for(i=0;i<gh;i++)goals.push(makeGoalEvent(hId));
+  for(i=0;i<ga;i++)goals.push(makeGoalEvent(aId));
   goals.sort(function(x,y){return x.min-y.min;});
-  goals.forEach(function(g){recordScorer(g.scorer,g.team);});
+  goals.forEach(function(g){recordScorer(g.scorer,g.team);if(g.assist)recordAssist(g.assist,g.team);});
   return{h:hId,a:aId,gh:gh,ga:ga,goals:goals};
+}
+function makeGoalEvent(teamId){
+  var scorer=pickScorer(teamId);
+  return {team:teamId,min:1+Math.floor(_rng()*90),scorer:scorer,assist:pickAssister(teamId,scorer)};
 }
 function sorted(){return _league.slice().sort(function(a,b){return b.Pts-a.Pts||(b.GF-b.GA)-(a.GF-a.GA)||b.GF-a.GF;});}
 function renderPills(){
@@ -101,11 +150,13 @@ function renderTable(){
 function topScorers(){
   return Object.keys(_scorers).map(function(k){return _scorers[k];}).sort(function(a,b){return b.goals-a.goals;}).slice(0,15);
 }
-function renderScorers(){
-  var tb=G("scorerBody");if(!tb)return;tb.innerHTML="";
-  var list=topScorers();
+function topAssists(){
+  return Object.keys(_assists).map(function(k){return _assists[k];}).sort(function(a,b){return b.assists-a.assists;}).slice(0,15);
+}
+function renderStatTable(bodyId,list,statKey,emptyMsg){
+  var tb=G(bodyId);if(!tb)return;tb.innerHTML="";
   if(!list.length){
-    tb.innerHTML='<tr><td colspan="3" class="text-center text-dim py-3">Henuz gol yok.</td></tr>';
+    tb.innerHTML='<tr><td colspan="3" class="text-center text-dim py-3">'+emptyMsg+'</td></tr>';
     return;
   }
   list.forEach(function(p,i){
@@ -113,16 +164,19 @@ function renderScorers(){
     var tr=document.createElement("tr");
     tr.innerHTML='<td class="text-center text-dim">'+(i+1)+'</td>'
       +'<td><div class="flex items-center gap-[5px]"><span class="crest w-4 h-4 text-[6px] font-narrow" style="background:linear-gradient(135deg,'+t.c1+','+t.c2+');color:'+contrast(t.c1)+';">'+t.s+'</span>'+esc(p.name)+'</div></td>'
-      +'<td class="text-center"><b class="text-gold-light">'+p.goals+'</b></td>';
+      +'<td class="text-center"><b class="text-gold-light">'+p[statKey]+'</b></td>';
     tb.appendChild(tr);
   });
 }
+function renderScorers(){renderStatTable("scorerBody",topScorers(),"goals","Henuz gol yok.");}
+function renderAssists(){renderStatTable("assistBody",topAssists(),"assists","Henuz asist yok.");}
 function showTab(which){
-  var isStats=which==="scorers";
-  G("standingsWrap").classList.toggle("hidden",isStats);
-  G("scorersWrap").classList.toggle("hidden",!isStats);
-  G("tabStandings").className="btn btn-sm"+(isStats?" btn-ghost":"");
-  G("tabScorers").className="btn btn-sm"+(isStats?"":" btn-ghost");
+  G("standingsWrap").classList.toggle("hidden",which!=="standings");
+  G("scorersWrap").classList.toggle("hidden",which!=="scorers");
+  G("assistsWrap").classList.toggle("hidden",which!=="assists");
+  G("tabStandings").className="btn btn-sm"+(which==="standings"?"":" btn-ghost");
+  G("tabScorers").className="btn btn-sm"+(which==="scorers"?"":" btn-ghost");
+  G("tabAssists").className="btn btn-sm"+(which==="assists"?"":" btn-ghost");
 }
 // The fixture I personally play in a given round, or null (bye week / already over).
 function myFixture(round){
@@ -272,7 +326,7 @@ function advanceRound(narrate){
   var matches=_fixtures[_round];
   var res=matches.map(function(m){return simMatch(m.h,m.a);});
   _log.push({r:_round+1,res:res});_round++;
-  renderPills();renderTable();renderScorers();renderNextFixture();renderRound(_log[_log.length-1]);
+  renderPills();renderTable();renderScorers();renderAssists();renderNextFixture();renderRound(_log[_log.length-1]);
   maybeShowNarration(matches,res,narrate);
   if(_round>=_fixtures.length)onEnd();
   return true;
@@ -313,7 +367,7 @@ function renderNarrStep(){
     if(g.team===_narrTeams.h.id)_narrScore[0]++;else _narrScore[1]++;
     var line=document.createElement("p");
     line.className="text-sm leading-relaxed mb-1.5";
-    line.innerHTML="<b class=\"text-gold-light\">"+g.min+"'</b> GOL! "+esc(g.scorer?g.scorer.n:"?")+" ("+(g.team===_narrTeams.h.id?_narrTeams.h.name:_narrTeams.a.name)+") &mdash; "+_narrScore[0]+"-"+_narrScore[1];
+    line.innerHTML="<b class=\"text-gold-light\">"+g.min+"'</b> GOL! "+esc(g.scorer?g.scorer.n:"?")+" ("+(g.team===_narrTeams.h.id?_narrTeams.h.name:_narrTeams.a.name)+")"+(g.assist?" &mdash; asist: "+esc(g.assist.n):"")+" &mdash; "+_narrScore[0]+"-"+_narrScore[1];
     box.appendChild(line);
     box.scrollTop=box.scrollHeight;
   }

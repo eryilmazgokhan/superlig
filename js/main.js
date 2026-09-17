@@ -17,6 +17,7 @@ G("nextBtn").onclick = requestAdvance;
 G("allBtn").onclick = function(){_autoAll=true;tryFree();};
 G("tabStandings").onclick = function(){showTab("standings");};
 G("tabScorers").onclick = function(){showTab("scorers");};
+G("tabAssists").onclick = function(){showTab("assists");};
 G("showChampBtn").onclick = openChampOverlay;
 G("mcastNext").onclick = narrNext;
 G("mcastClose").onclick = closeNarration;

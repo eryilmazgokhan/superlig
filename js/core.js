@@ -10,6 +10,7 @@ var pollTimer = null, pollCount = 0;
 var lastPhase = null;
 var loc = { fkey:"4-4-2", slots:[], assigned:[], focusIdx:-1, cache:{}, pool:[], chem:false };
 var _league=[], _fixtures=[], _round=0, _log=[], _rng=Math.random;
+var _leagueStartSent=false; // guards the building->league write below from firing on every 2s poll
 
 // Session survives a reload in the same tab, so the player rejoins instead of leaving a ghost behind.
 function saveSession(){try{sessionStorage.setItem("sl",JSON.stringify({id:ME.id,nick:ME.nick,room:ROOM}));}catch(e){}}
@@ -113,7 +114,22 @@ function onRoomUpdate(data){
   } else if(phase==="building"){
     renderReadyChips(active);
     var allReady=ids.length>=2&&ids.every(function(pid){return active[pid].ready;});
-    if(allReady&&iAmHost)dbUpdate("rooms/"+ROOM,{phase:"league"});
+    // Two writes on purpose: "phase" is the critical transition and must never be
+    // blocked by "round" (a newer field older, not-yet-redeployed Firebase rules
+    // may still reject). If the combined write fails, retry phase alone.
+    if(allReady&&iAmHost&&!_leagueStartSent){
+      _leagueStartSent=true;
+      dbUpdate("rooms/"+ROOM,{phase:"league",round:0},function(err){
+        if(!err)return;
+        _leagueStartSent=false;
+        dbUpdate("rooms/"+ROOM,{phase:"league"},function(err2){
+          if(err2){_leagueStartSent=false;return;} // will retry on next poll
+          dbUpdate("rooms/"+ROOM,{round:0}); // best-effort; ignore failure
+        });
+      });
+    }
+  } else if(phase==="league"){
+    if(typeof onLeaguePoll==="function")onLeaguePoll(data,active);
   }
 }
 
@@ -137,7 +153,8 @@ function onPhaseChange(phase, data, active){
       setStep(2);hideBanner();
     }
   } else if(phase==="league"){
-    stopPoll();clearSession();
+    // Polling keeps running through the league: rounds now advance via a shared
+    // Firebase counter (see league.js) so friend-vs-friend weeks stay in sync.
     var done={};
     Object.keys(data.players||{}).forEach(function(pid){var p=data.players[pid];if(p&&p.teamId&&p.ready)done[pid]=p;});
     buildLeague(done, data.seed);

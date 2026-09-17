@@ -129,8 +129,15 @@
 
 <section id="s4" class="hidden">
   <h1>Super Lig</h1>
-  <div class="flex flex-wrap gap-2 mt-3 mb-3.5" id="lgpills"></div>
-  <div class="overflow-x-auto rounded-lg">
+  <div class="flex flex-wrap items-center gap-2 mt-3 mb-3.5" id="lgpills">
+    <button class="btn btn-sm btn-ghost hidden" id="showChampBtn">Sampiyon</button>
+  </div>
+  <div id="simApproval" class="hidden mb-3 p-3 rounded-[10px] bg-pitch-800 border border-gold/40"></div>
+  <div class="flex gap-2 mb-2.5">
+    <button class="btn btn-sm" id="tabStandings">Puan Durumu</button>
+    <button class="btn btn-sm btn-ghost" id="tabScorers">Gol Kralligi</button>
+  </div>
+  <div id="standingsWrap" class="overflow-x-auto rounded-lg">
     <table class="w-full min-w-[340px] text-[11.5px]">
       <thead class="text-left text-[10px] text-dim font-semibold [&_th]:px-[5px] [&_th]:py-[7px] [&_th]:border-b [&_th]:border-gold/15 [&_th]:whitespace-nowrap"><tr>
         <th>Takim</th><th class="text-center">O</th><th class="text-center">G</th><th class="text-center">B</th><th class="text-center">M</th>
@@ -139,7 +146,16 @@
       <tbody id="tbody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
     </table>
   </div>
-  <div class="flex flex-wrap gap-2 mt-3.5">
+  <div id="scorersWrap" class="hidden overflow-x-auto rounded-lg">
+    <table class="w-full min-w-[260px] text-[11.5px]">
+      <thead class="text-left text-[10px] text-dim font-semibold [&_th]:px-[5px] [&_th]:py-[7px] [&_th]:border-b [&_th]:border-gold/15 [&_th]:whitespace-nowrap"><tr>
+        <th class="text-center">#</th><th>Oyuncu</th><th class="text-center">Gol</th>
+      </tr></thead>
+      <tbody id="scorerBody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
+    </table>
+  </div>
+  <div id="nextFixture" class="text-[13px] text-mist mt-3"></div>
+  <div class="flex flex-wrap items-center gap-2 mt-2">
     <button class="btn btn-pri" id="nextBtn">Sonraki hafta</button>
     <button class="btn btn-ghost" id="allBtn">Tumunu simule et</button>
   </div>
@@ -150,6 +166,16 @@
 
 <div id="ov" class="hidden fixed inset-0 z-[100] items-center justify-center p-4 bg-[#050c08]/90">
   <div class="w-full max-w-[380px] py-7 px-5 rounded-[14px] bg-pitch-800 border border-gold text-center" id="champ"></div>
+</div>
+<div id="mcast" class="hidden fixed inset-0 z-[100] items-center justify-center p-4 bg-[#050c08]/90">
+  <div class="w-full max-w-[420px] max-h-[80vh] flex flex-col py-5 px-5 rounded-[14px] bg-pitch-800 border border-gold">
+    <h3 class="text-sm text-gold-light font-bold mb-2.5 shrink-0">Mac Anlatimi</h3>
+    <div id="mcastBody" class="flex-1 overflow-y-auto mb-3"></div>
+    <div class="flex gap-2 shrink-0">
+      <button class="btn btn-pri btn-sm" id="mcastNext">Devam</button>
+      <button class="btn btn-ghost btn-sm" id="mcastClose">Kapat</button>
+    </div>
+  </div>
 </div>
 <script src="js/data.js"></script>
 <script src="js/core.js"></script>

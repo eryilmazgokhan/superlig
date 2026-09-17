@@ -18,7 +18,7 @@ Plain `<script src>` tags, ES5 globals, no modules. `index.html` loads them in t
 | `js/lobby.js` | screens 0-1: create/join room, lobby list, `buildPool`, team grid, `selectTeam` |
 | `js/tactics.js` | screen 2: formation buttons, draggable nodes |
 | `js/squad.js` | screen 3: slots, candidate picker, `markReady` |
-| `js/league.js` | screen 4: fixtures, `simMatch`, table, `onEnd` |
+| `js/league.js` | screen 4: fixtures, `simMatch` + scorers, standings, gol krallik, round-advance approval flow, text narration, `onEnd` |
 | `js/main.js` | button wiring, `setStep(0)` |
 
 Data is a `.js` file rather than fetched JSON so the page still works when opened from disk (`file://`).
@@ -27,7 +27,8 @@ Data is a `.js` file rather than fetched JSON so the page still works when opene
 
 - Open `index.html` directly in a browser, or serve the folder with `python3 -m http.server 8765` and open http://127.0.0.1:8765/.
 - Internet is required: Tailwind comes from a CDN and room state lives in Firebase.
-- There are no tests or linters. Verify by loading the page and walking the five screens. Screens after the lobby can be driven without touching Firebase by calling render functions from the console, e.g. `setStep(1); buildPool(); renderTeams({})`, `setStep(2); buildFormation("4-3-3"); renderNodes()`, `setStep(4); buildLeague({}, 42); simRound()`. For the full multiplayer flow without the network, override `req` with an in-memory store in the console.
+- There are no tests or linters. Verify by loading the page and walking the five screens. Screens after the lobby can be driven without touching Firebase by calling render functions from the console, e.g. `setStep(1); buildPool(); renderTeams({})`, `setStep(2); buildFormation("4-3-3"); renderNodes()`, `setStep(4); buildLeague({}, 42); advanceRound(false)`. For the full multiplayer flow without the network, override `req` with an in-memory store in the console.
+- Testing the approval flow for real needs two tabs/players with a human-vs-human fixture that week; `_fixtures[_round]` shows the upcoming pairing and `_league` each team's `.pid`/`.isHuman`.
 
 ## Token discipline
 
@@ -53,20 +54,31 @@ Room document `rooms/{CODE}`:
 ```
 { phase: "lobby"|"selecting"|"building"|"league",
   host: "<player id>", created: <ms>, seed: <int>,
+  round: <int>,                 // shared "weeks simulated" counter, league phase only
+  simReq?: { round, by, approvals: { "<pid>": true }, narrateVotes?: { "<pid>": true } },  // pending round-advance request
   players: { "<id>": { nick, teamId|null, ready, squadPw?, ts, seen } } }
 ```
 
 Phase transitions are all written by the host (`effectiveHost`: the stored host, or the earliest-joined active player if the host vanished):
 - `lobby → selecting`: host presses start (needs 2+ players).
 - `selecting → building`: every active player has a `teamId`. Picking a team only writes your own `teamId`.
-- `building → league`: every active player has `ready:true`. Tactics (screen 2) and squad (screen 3) are both local steps inside `building`; "Kadro kur" just calls `setStep(3)`.
+- `building → league`: every active player has `ready:true`. Tactics (screen 2) and squad (screen 3) are both local steps inside `building`; "Kadro kur" just calls `setStep(3)`. The host writes `phase:"league"` and `round:0` together, but guards with `_leagueStartSent` and retries `phase` alone (then `round` separately, best-effort) if the combined write is rejected — so a not-yet-redeployed `database.rules.json` that doesn't whitelist `round` can never block the phase transition itself, only the round counter.
 
-Ghosts: `activePlayers` drops anyone whose `seen` is older than `STALE_MS` (30 s), so a closed tab never blocks "everyone picked / everyone ready". A reload in the same tab restores `ME.id`/`ROOM` from `sessionStorage` and calls `rejoin`, which resumes at the current phase (including "already ready, waiting").
+Ghosts: `activePlayers` drops anyone whose `seen` is older than `STALE_MS` (30 s), so a closed tab never blocks "everyone picked / everyone ready", and never blocks a round-advance approval either (see below). A reload in the same tab restores `ME.id`/`ROOM` from `sessionStorage` and calls `rejoin`, which resumes at the current phase (including "already ready, waiting"); a reload during `league` still lands on a fresh `s0` (rejoin doesn't resume mid-season).
 
 Shared vs local state:
-- Shared through Firebase: `nick`, `teamId`, `ready`, `squadPw` (average power of the 11 assigned players, plus 2), the room `seed`.
+- Shared through Firebase: `nick`, `teamId`, `ready`, `squadPw` (average power of the 11 assigned players, plus 2), the room `seed`, and during `league` the shared `round` counter + `simReq`.
 - Local only (`loc`): the player pool (`buildPool` rolls a random power per player from the club's base `pw`), the formation and dragged slot positions, the assigned squad, the per-slot candidate cache. Each client draws different candidates.
-- The league runs client-side but is deterministic: `buildLeague(players, seed)` seeds `_rng` (`mulberry32`) and `makeFixtures`, AI team power and `simMatch` draw only from `_rng`, so every player sees the identical season. Polling stops when the league starts and `onEnd` deletes the room.
+- The league itself runs client-side but is deterministic: `buildLeague(players, seed)` seeds `_rng` (`mulberry32`) and `makeFixtures`, AI team power and `simMatch` draw only from `_rng`, so every player sees the identical season (same standings, same gol krallik). What is no longer purely local is *when* each round actually simulates:
+  - `advanceRound(narrate)` is the real simulate-and-render step (was `simRound`). Every client calls it once per round, locally, either while catching up to `room.round` or right after seeing a round's approvals complete.
+  - `renderNextFixture()` always shows "Sonraki hafta: A - B" above the buttons (`#nextFixture`), computed from `myFixture(_round)` — the upcoming matchup is visible before the player ever presses anything, not just after.
+  - `requestAdvance()` (wired to "Sonraki hafta", no args now) and `tryFree()` (wired to "Tumunu simule et") are the gates in front of `advanceRound`: if `_fixtures[_round]` has no active human-vs-human fixture, they advance immediately (`writeRound` + `advanceRound`); if it does, they write `simReq` (just `{round, by, approvals}`, no upfront narrate choice) and wait.
+  - `onLeaguePoll` (called from `onRoomUpdate` every poll while `phase==="league"`; polling is no longer stopped when the league starts) is what actually drives this: it replays any rounds the room is ahead of (`room.round`), and shows/clears the approval banner (`showApprovalPrompt`/`hideApprovalBanner`) via `handleSimRequest`.
+  - Because both sides' clicks are just "add my pid to `simReq.approvals`", either participant can request and either can approve/reject (`approveSim`/`rejectSim`); a stale (ghost) opponent is dropped from the required set by `requiredPids`, same as elsewhere.
+  - Whether to narrate is a shared decision, not something the requester decides upfront: `showApprovalPrompt` renders the fixture name and a "Bu haftayi yaziyla anlat" checkbox to *both* sides (the requester waiting for approval, and the other player deciding whether to approve), wired to `voteNarrate(want)` which writes `simReq.narrateVotes.{pid}`. `narrateFor(req, active, round)` resolves the final flag once all approvals are in: true if *any* required pid voted for it. Used both by `handleSimRequest` (live resolution) and `onLeaguePoll`'s catch-up loop (replaying a round a poll arrived late for).
+  - Goal scorers aren't simulated per-player; `pickScorer`/`clubRoster` draw a name from that club's real entries in `PLAYERS` (weighted by position, GK excluded), for AI *and* human teams alike, deterministically from `_rng` — so no extra Firebase field is needed to know a human's actual drafted squad. `recordScorer` tallies `_scorers` for the gol krallik tab (`renderScorers`/`topScorers`).
+  - Text narration (`maybeShowNarration`/`renderNarrStep`, the `#mcast` overlay) only ever renders for a human-vs-human fixture, and only when `narrateFor` resolved true for that round; every other fixture always resolves instantly.
+  - `onEnd()` no longer deletes the room — the champion overlay (`#ov`/`#champ`) can be dismissed with "Sonuclari incele" (`closeChampOverlay`, reopened via `showChampBtn`/`openChampOverlay`) to browse the finished table/gol krallik without forcing a new season. `newSeason()` (the only thing that reloads the page) is what deletes the room now.
 
 All Firebase calls go through `req(method, path, val, cb)`, which turns non-2xx responses into errors. Nicknames are the only user text; pass them through `esc()` before `innerHTML`.
 

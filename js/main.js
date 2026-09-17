@@ -13,8 +13,13 @@ G("cpyBtn").onclick = function(){
 };
 G("toSqBtn").onclick = function(){renderSquad();setStep(3);};
 G("readyBtn").onclick = markReady;
-G("nextBtn").onclick = function(){simRound();};
-G("allBtn").onclick = function(){while(simRound()){}};
+G("nextBtn").onclick = requestAdvance;
+G("allBtn").onclick = function(){_autoAll=true;tryFree();};
+G("tabStandings").onclick = function(){showTab("standings");};
+G("tabScorers").onclick = function(){showTab("scorers");};
+G("showChampBtn").onclick = openChampOverlay;
+G("mcastNext").onclick = narrNext;
+G("mcastClose").onclick = closeNarration;
 setStep(0);
 var sess=loadSession();
 if(sess&&sess.room)rejoin(sess);

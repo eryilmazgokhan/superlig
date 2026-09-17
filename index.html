@@ -129,46 +129,56 @@
 
 <section id="s4" class="hidden">
   <h1>Super Lig</h1>
-  <div class="flex flex-wrap items-center gap-2 mt-3 mb-3.5" id="lgpills">
-    <button class="btn btn-sm btn-ghost hidden" id="showChampBtn">Sampiyon</button>
+  <div class="flex flex-col lg:flex-row gap-4 mt-3">
+    <div class="flex-1 min-w-0">
+      <div class="flex flex-wrap items-center gap-2 mb-3.5" id="lgpills">
+        <button class="btn btn-sm btn-ghost hidden" id="showChampBtn">Sampiyon</button>
+      </div>
+      <div id="simApproval" class="hidden mb-3 p-3 rounded-[10px] bg-pitch-800 border border-gold/40"></div>
+      <div class="flex gap-2 mb-2.5">
+        <button class="btn btn-sm" id="tabStandings">Puan Durumu</button>
+        <button class="btn btn-sm btn-ghost" id="tabScorers">Gol Kralligi</button>
+        <button class="btn btn-sm btn-ghost" id="tabAssists">Asist Kralligi</button>
+      </div>
+      <div id="standingsWrap" class="overflow-x-auto rounded-lg">
+        <table class="w-full min-w-[340px] text-[11.5px]">
+          <thead class="text-left text-[10px] text-dim font-semibold [&_th]:px-[5px] [&_th]:py-[7px] [&_th]:border-b [&_th]:border-gold/15 [&_th]:whitespace-nowrap"><tr>
+            <th>Takim</th><th class="text-center">O</th><th class="text-center">G</th><th class="text-center">B</th><th class="text-center">M</th>
+            <th class="text-center">A</th><th class="text-center">Y</th><th class="text-center">AV</th><th class="text-center">P</th>
+          </tr></thead>
+          <tbody id="tbody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
+        </table>
+      </div>
+      <div id="scorersWrap" class="hidden overflow-x-auto rounded-lg">
+        <table class="w-full min-w-[260px] text-[11.5px]">
+          <thead class="text-left text-[10px] text-dim font-semibold [&_th]:px-[5px] [&_th]:py-[7px] [&_th]:border-b [&_th]:border-gold/15 [&_th]:whitespace-nowrap"><tr>
+            <th class="text-center">#</th><th>Oyuncu</th><th class="text-center">Gol</th>
+          </tr></thead>
+          <tbody id="scorerBody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
+        </table>
+      </div>
+      <div id="assistsWrap" class="hidden overflow-x-auto rounded-lg">
+        <table class="w-full min-w-[260px] text-[11.5px]">
+          <thead class="text-left text-[10px] text-dim font-semibold [&_th]:px-[5px] [&_th]:py-[7px] [&_th]:border-b [&_th]:border-gold/15 [&_th]:whitespace-nowrap"><tr>
+            <th class="text-center">#</th><th>Oyuncu</th><th class="text-center">Asist</th>
+          </tr></thead>
+          <tbody id="assistBody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
+        </table>
+      </div>
+      <div id="nextFixture" class="text-[13px] text-mist mt-3"></div>
+      <div class="flex flex-wrap items-center gap-2 mt-2">
+        <button class="btn btn-pri" id="nextBtn">Sonraki hafta</button>
+        <button class="btn btn-ghost" id="allBtn">Tumunu simule et</button>
+      </div>
+      <div id="flog" class="mt-4"></div>
+    </div>
+    <div class="w-full lg:w-[220px] shrink-0">
+      <div class="rounded-lg border border-gold/15 bg-pitch-800 p-3 lg:sticky lg:top-3">
+        <h3 class="text-[12px] text-gold-light font-bold font-narrow mb-2">Kadron</h3>
+        <div id="mySquadBody" class="flex flex-col gap-1"></div>
+      </div>
+    </div>
   </div>
-  <div id="simApproval" class="hidden mb-3 p-3 rounded-[10px] bg-pitch-800 border border-gold/40"></div>
-  <div class="flex gap-2 mb-2.5">
-    <button class="btn btn-sm" id="tabStandings">Puan Durumu</button>
-    <button class="btn btn-sm btn-ghost" id="tabScorers">Gol Kralligi</button>
-    <button class="btn btn-sm btn-ghost" id="tabAssists">Asist Kralligi</button>
-  </div>
-  <div id="standingsWrap" class="overflow-x-auto rounded-lg">
-    <table class="w-full min-w-[340px] text-[11.5px]">
-      <thead class="text-left text-[10px] text-dim font-semibold [&_th]:px-[5px] [&_th]:py-[7px] [&_th]:border-b [&_th]:border-gold/15 [&_th]:whitespace-nowrap"><tr>
-        <th>Takim</th><th class="text-center">O</th><th class="text-center">G</th><th class="text-center">B</th><th class="text-center">M</th>
-        <th class="text-center">A</th><th class="text-center">Y</th><th class="text-center">AV</th><th class="text-center">P</th>
-      </tr></thead>
-      <tbody id="tbody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
-    </table>
-  </div>
-  <div id="scorersWrap" class="hidden overflow-x-auto rounded-lg">
-    <table class="w-full min-w-[260px] text-[11.5px]">
-      <thead class="text-left text-[10px] text-dim font-semibold [&_th]:px-[5px] [&_th]:py-[7px] [&_th]:border-b [&_th]:border-gold/15 [&_th]:whitespace-nowrap"><tr>
-        <th class="text-center">#</th><th>Oyuncu</th><th class="text-center">Gol</th>
-      </tr></thead>
-      <tbody id="scorerBody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
-    </table>
-  </div>
-  <div id="assistsWrap" class="hidden overflow-x-auto rounded-lg">
-    <table class="w-full min-w-[260px] text-[11.5px]">
-      <thead class="text-left text-[10px] text-dim font-semibold [&_th]:px-[5px] [&_th]:py-[7px] [&_th]:border-b [&_th]:border-gold/15 [&_th]:whitespace-nowrap"><tr>
-        <th class="text-center">#</th><th>Oyuncu</th><th class="text-center">Asist</th>
-      </tr></thead>
-      <tbody id="assistBody" class="[&_td]:px-[5px] [&_td]:py-[7px] [&_td]:border-b [&_td]:border-white/5"></tbody>
-    </table>
-  </div>
-  <div id="nextFixture" class="text-[13px] text-mist mt-3"></div>
-  <div class="flex flex-wrap items-center gap-2 mt-2">
-    <button class="btn btn-pri" id="nextBtn">Sonraki hafta</button>
-    <button class="btn btn-ghost" id="allBtn">Tumunu simule et</button>
-  </div>
-  <div id="flog" class="mt-4"></div>
 </section>
 
 </div>

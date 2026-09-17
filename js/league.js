@@ -13,13 +13,10 @@ var PLAYERS_BY_NAME=(function(){var m={};PLAYERS.forEach(function(p){m[p.n]=p;})
 
 function buildLeague(players, seed){
   _rng=mulberry32(seed||1);
-  var humanTeams={},claimed={};
+  var humanTeams={};
   Object.keys(players).forEach(function(pid){
     var p=players[pid];
-    if(p.teamId){
-      humanTeams[p.teamId]={nick:p.nick,pw:p.squadPw||TS[p.teamId].pw,isMe:pid===ME.id,pid:pid,squad:p.squad||[]};
-      (p.squad||[]).forEach(function(n){claimed[n]=true;});
-    }
+    if(p.teamId)humanTeams[p.teamId]={nick:p.nick,pw:p.squadPw||TS[p.teamId].pw,isMe:pid===ME.id,pid:pid,squad:p.squad||[]};
   });
   _league=TEAMS.map(function(t){
     var h=humanTeams[t.id];
@@ -30,9 +27,16 @@ function buildLeague(players, seed){
       P:0,W:0,D:0,L:0,GF:0,GA:0,Pts:0};
   });
   // Every human's actual drafted 11 becomes their team's roster (what scorers/assists draw from).
-  Object.keys(humanTeams).forEach(function(teamId){
-    var team=tById(teamId);if(!team)return;
-    team.roster=humanTeams[teamId].squad.map(function(n){return PLAYERS_BY_NAME[n];}).filter(Boolean);
+  // Walked in fixed TEAMS order (identical on every client) so that if two humans both happened
+  // to draft the same real player -- their candidate pools are independent, nothing stops it --
+  // he ends up credited to only whichever team comes first in that order, never both.
+  var claimed={};
+  _league.forEach(function(team){
+    var h=humanTeams[team.id];if(!h)return;
+    team.roster=h.squad.map(function(n){return PLAYERS_BY_NAME[n];}).filter(function(p){
+      if(!p||claimed[p.n])return false;
+      claimed[p.n]=true;return true;
+    });
   });
   // Whoever wasn't drafted by a human is dealt out, deterministically (same seed, same order on
   // every client), across the AI clubs -- so a player who got drafted onto someone's XI can no
@@ -43,8 +47,25 @@ function buildLeague(players, seed){
   if(aiTeams.length)remaining.forEach(function(p,i){aiTeams[i%aiTeams.length].roster.push(p);});
   _fixtures=makeFixtures(_league.map(function(t){return t.id;}));
   _round=0;_log=[];_scorers={};_assists={};_autoAll=false;_myPendingReqRound=null;
-  renderPills();renderTable();renderScorers();renderAssists();renderNextFixture();G("flog").innerHTML="";
+  renderPills();renderTable();renderScorers();renderAssists();renderNextFixture();renderMySquad();G("flog").innerHTML="";
   hideApprovalBanner();
+}
+// The persistent "Kadron" panel on screen 4, so a player can still see who they actually
+// drafted (and who ended up eligible to score for them) while browsing the league.
+function renderMySquad(){
+  var body=G("mySquadBody");if(!body)return;
+  var team=tById(ME.teamId);
+  if(!team||!team.roster||!team.roster.length){
+    body.innerHTML='<p class="text-[11px] text-dim">Kadro bulunamadi.</p>';
+    return;
+  }
+  body.innerHTML="";
+  team.roster.forEach(function(p){
+    var row=document.createElement("div");
+    row.className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-pitch-900 border border-white/5 text-[11.5px]";
+    row.innerHTML='<span class="text-dim font-narrow font-bold w-7 shrink-0">'+esc(p.t)+'</span><span class="flex-1 truncate">'+esc(p.n)+'</span>';
+    body.appendChild(row);
+  });
 }
 // Fisher-Yates using the shared seeded RNG (not Math.random) so every client deals the same cards.
 function seededShuffle(a){

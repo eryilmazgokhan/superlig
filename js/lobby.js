@@ -4,17 +4,15 @@ function buildPool(){
   var pool=[];var id=1;
   PLAYERS.forEach(function(p){
     var t=TS[p.c];if(!t)return;
-    var bias=(p.t==="ST"||p.t==="AM")?2:(p.t==="GK"||p.t==="CB")?-1:0;
-    var pw=Math.round(t.pw+bias+(rnd(13)-4));
-    pw=Math.max(50,Math.min(96,pw));
-    pool.push({id:"p"+(id++),name:p.n,type:p.t,pw:pw,trait:pick(TRAITS),club:p.c});
+    var types=[p.t].concat(p.alt||[]);
+    pool.push({id:"p"+(id++),name:p.n,type:p.t,types:types,pw:p.ca,trait:pick(TRAITS),club:p.c});
   });
   loc.pool=pool;
 }
 function applyChemBonus(){
   if(loc.chem||!ME.teamId)return;
   var myS=TS[ME.teamId]?TS[ME.teamId].s:null;
-  if(myS)loc.pool.forEach(function(p){if(p.club===myS){p.pw=Math.min(99,p.pw+1+rnd(2));}});
+  if(myS)loc.pool.forEach(function(p){if(p.club===myS){p.pw=Math.min(99,Math.round(p.pw*1.01));}});
   loc.chem=true;
 }
 
@@ -115,7 +113,6 @@ function renderTeams(players){
     if(isTaken)btn.setAttribute("disabled","");
     btn.innerHTML='<div class="crest w-9 h-9 text-[10px]" style="'+cs(t)+'">'+t.s+'</div>'
       +'<div class="font-narrow text-sm font-bold leading-tight">'+t.name+'</div>'
-      +'<div class="text-[11px] text-dim">Guc: <b class="text-gold">'+t.pw+'</b></div>'
       +(isTaken?'<div class="text-[10px] text-danger mt-0.5">'+esc(taken[t.id])+' secti</div>':"")
       +(isMine?'<div class="text-[10px] text-ok mt-0.5">Senin secimin &#10003;</div>':"");
     if(!isTaken){

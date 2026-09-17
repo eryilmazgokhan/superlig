@@ -20,8 +20,7 @@ function buildLeague(players, seed){
   });
   _league=TEAMS.map(function(t){
     var h=humanTeams[t.id];
-    var pw=h?h.pw:t.pw+(Math.floor(_rng()*7)-3);
-    return{id:t.id,name:t.name,s:t.s,c1:t.c1,c2:t.c2,pw:pw,
+    return{id:t.id,name:t.name,s:t.s,c1:t.c1,c2:t.c2,pw:h?h.pw:t.pw,
       isMe:h?h.isMe:false,isHuman:!!h,nick:h?h.nick:null,pid:h?h.pid:null,
       roster:[], // actual matchday squad, filled in below -- not the native-club listing in PLAYERS
       P:0,W:0,D:0,L:0,GF:0,GA:0,Pts:0};
@@ -45,6 +44,13 @@ function buildLeague(players, seed){
   var remaining=seededShuffle(PLAYERS.filter(function(p){return !claimed[p.n];}));
   var aiTeams=_league.filter(function(t){return !t.isHuman;});
   if(aiTeams.length)remaining.forEach(function(p,i){aiTeams[i%aiTeams.length].roster.push(p);});
+  // An AI club's strength now comes from the real CA of the players it actually got dealt,
+  // not a fixed per-club number -- so "başta seçilen takım gücü" no longer means anything either.
+  aiTeams.forEach(function(t){
+    if(!t.roster.length)return;
+    var sum=t.roster.reduce(function(s,p){return s+(p.ca||0);},0);
+    t.pw=Math.round(sum/t.roster.length);
+  });
   _fixtures=makeFixtures(_league.map(function(t){return t.id;}));
   _round=0;_log=[];_scorers={};_assists={};_autoAll=false;_myPendingReqRound=null;
   renderPills();renderTable();renderScorers();renderAssists();renderNextFixture();renderMySquad();G("flog").innerHTML="";

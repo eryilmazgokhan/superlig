@@ -30,7 +30,7 @@ function openCands(idx){
   var slot=loc.slots[idx],cur=loc.assigned[idx];
   if(!loc.cache[idx]){
     var types=COMPAT[slot.p]||[slot.p];
-    var elig=loc.pool.filter(function(p){return types.indexOf(p.type)>=0;});
+    var elig=loc.pool.filter(function(p){var pt=p.types||[p.type];return pt.some(function(x){return types.indexOf(x)>=0;});});
     loc.cache[idx]=shuffled(elig).slice(0,5);
   }
   var cands=loc.cache[idx].slice();
